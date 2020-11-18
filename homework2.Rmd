@@ -1,0 +1,291 @@
+---
+title: "Homework 2"
+author: "Your Name Here"
+date: 'Fall 2020'
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: paper
+    highlight: tango
+---
+
+##### This homework is due by **1:30PM ET on Wednesday, November 11**.  To complete this assignment, follow these steps:
+
+```{r}
+#for loop in 5, resolve host in line 28
+library(tidyverse)
+```
+
+
+### Problem 1: Tabular summaries
+
+We'll start by downloading a publicly available dataset that contains some census data information.  This dataset is called `income`.
+
+Here I'm using the `read_csv` command, which is the tidy version of `read.csv`.  The resulting object is a `tibble`, which for the purposes of this question behaves exactly like a regular data frame.  
+
+```{r}
+# Import data file
+income <- read_csv("http://www.andrew.cmu.edu/user/achoulde/94842/data/income_data.txt", 
+                   col_names = FALSE)
+
+# Give the variables names
+colnames(income) <- c("age", "workclass", "fnlwgt", 
+                      "education", "education.years", 
+                      "marital.status", "occupation", 
+                      "relationship", "race", "sex", 
+                      "capital.gain", "capital.loss", 
+                      "hours.per.week", "native.country",
+                      "income.bracket")
+```
+
+##### (a) table()
+
+Use the `table()` function to produce a contingency table of observation counts across **marital status** and **sex**.
+
+```{r}
+table(income$marital.status, income$sex)
+```
+
+##### (b)  The `prop.table()` function calculates a table of proportions from a table of counts.  Read the documentation for this function to see how it works.  Use `prop.table()` and your table from problem **(a)** to form a (column) proportions table.  The Female column of the table should show the proportion of women in each marital status category.  The Male column will show the same, but for men.
+
+
+```{r}
+sexMarried <- table(income$marital.status, income$sex)
+marriedPropTable <- prop.table(sexMarried, 1)
+prop.table(sexMarried, 1)
+```
+
+
+##### (c)  Use part (b) to answer the following questions.    In this data set, are women more or less likely than men to be married?  Are women more or less likely to be Widowed?  (As part of your answer, calculate the % of individuals in each group who report being married, and the % who report being widowed.  Use inline code chunks when reporting these values.)
+
+<font color="#157515"><b>
+
+Women are more likely than man to be married with a spouse in the air force, with `r marriedPropTable[1,"Female"]`% of women reporting as married compared to `r marriedPropTable[2,"Male"]`% of men . Women are less likely than men to be married to a civilian spouse. Women and men are about equally likely to have an absent spouse. Women are much more likely to be widowed than men, `r marriedPropTable[7,"Female"]`% of women compared to `r marriedPropTable[7, "Male"]`% of men. 
+
+</font></b>
+
+##### (d) group_by() and summarize()
+
+Use the `summarize()` function in combination with `group_by()` to produce a table showing the average **education** (in years) across **marital status** and **sex** categories.
+
+```{r}
+income %>% group_by(marital.status, sex) %>% summarize(mean(education.years))
+
+```
+
+### Problem 2: A more complex example: Bank Marketing Data
+
+For the purpose of this problem we'll be working with the Portuguese Bank Marketing data, which is described [at this link](https://archive.ics.uci.edu/ml/datasets/Bank+Marketing). 
+
+Each row of the data represents a different bank "client" or "customer".  
+
+```{r}
+bank.data <- read_delim("http://www.andrew.cmu.edu/user/achoulde/94842/data/bank-full.csv", delim = ";")
+```
+ 
+##### (a) Number of clients contacted by month.
+
+Using `group_by` and `count`, produce a data frame that shows the number of clients who were contacted each month.
+
+```{r}
+bank.data %>% group_by(month) %>% count()
+```
+
+##### (b) Changing levels of a factor.
+
+You'll notice that the months in your table above appear in alphabetical order.  That makes it really hard to identify any meaningful temporal trends.  Use the `mutate()` and `factor()` commands to relevel the month variable so that the levels appear in calendar order, from January (jan) to December (dec).  You should replace the old `bank.data` data with your releveled version.
+
+Once you're done, repeat part (a).  
+
+You may want to look at the example [here](http://www.cookbook-r.com/Manipulating_data/Changing_the_order_of_levels_of_a_factor/).
+
+```{r}
+bank.data <- bank.data %>% 
+  mutate(month = factor(month, levels = c("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")))
+bank.data %>% group_by(month) %>% count()
+```
+
+##### (c) Success rate by month
+
+The `y` variable tells us whether the given client subscribed to a term deposit when contacted by the bank's marketers.  Use `group_by()` and `summarize()` to produce a table that shows for each month: the number of clients called (as in parts (a) and (b)), the number of clients who subscribed, and the proportion of clients who subscribed out of the number who were called.  Note, if you want a count using `summarize()`, you may use the `n()` function within a `summarize()` call.
+
+```{r}
+bank.data %>% group_by(month) %>% summarize(calls = n(), subscription = sum(y=='yes'), fractionSub = mean(y=='yes'))
+                                                                                  
+```
+
+##### (d) Variation in success of the marketing campaign
+
+According to your analysis, which months were the most successful for the marketing campaign in terms of the fraction of contacted clients who subscribed?  
+
+<font color="#157515"><b>
+
+March was the most successful month for the marketing campaign. During March over half (51%) of the contacted clients subscribed. Other successful months were September, October, and December with 46%, 44% and 48% respectively subscribing.
+
+</font></b>
+
+Are the more successful months the ones where the marketers tended to make more calls or fewer calls?  
+
+<font color="#157515"><b>
+
+The more successful months are those with fewer calls. All of the above months that had a high rate of subcriptions had between 214 and 738 calls. This is a low number of calls compared to May (13,766) or July (6.895). It may be that in each month the earlier calls are more likely to yield a subscription.
+
+</font></b>
+
+
+### Problem 3: Someone left strings in your numeric column!
+
+This exercise will give you practice with two of the most common data cleaning tasks.  For this problem we'll use the `survey_untidy2020.csv` data set posted on the course website.  Begin by importing this data into R.  The url for the data set is shown below.
+
+
+url: http://www.andrew.cmu.edu/user/achoulde/94842/data/survey_untidy2020.csv
+
+
+In Lecture 4 we look at an example of cleaning up the TVhours column.  The TVhours column of `survey_untidy2020.csv` has been corrupted in a similar way to what you saw in class.  
+
+Using the techniques you saw in class, make a new version of the untidy survey data where the TVhours column has been cleaned up. (Hint: *you may need to handle some of the observations on a case-by-case basis*)
+
+```{r}
+untidySurvey <- read_csv("http://www.andrew.cmu.edu/user/achoulde/94842/data/survey_untidy2020.csv")
+
+tidySurvey <- untidySurvey %>% 
+  mutate(TVhours = recode_factor(TVhours, 
+                                 'five' = '5',
+                                 'two' = '2',
+                                 'zero' = '0',
+                                 'no TV' = '0'
+                                 )) %>%
+  mutate(TVhours = as.numeric(gsub("[^0-9.]", "", TVhours)))
+
+```
+
+### Problem 4: Shouldn't ppm, pPM and PPM all be the same thing?
+
+This exercise picks up from Problem 3, and walks you through two different approaches to cleaning up the Program column
+
+##### (a) Identifying the problem.
+
+Use the `table` or `count` command on the Program column to figure out what went wrong with this column.  Describe the problem in the space below.
+
+```{r}
+table(untidySurvey$Program)
+```
+
+**Description of the problem:**
+<font color="#157515"><b>
+
+The problem is that the count has multiple entries for the same program. Different capitalization has split up the groups.
+
+</font></b>
+
+##### (b) `recode` approach
+
+Starting with the cleaned up data you produced in Problem 3, use the `recode` and `mutate` functions to fix the Program column by mapping all of the lowercase and mixed case program names to upper case.  
+
+```{r, message = FALSE}
+tidySurvey <- mutate(tidySurvey,
+                 Program = recode_factor(Program,
+                                         'ppm' = 'PPM',
+                                         'Ppm' = 'PPM',
+                                         'other' = 'Other',
+                                         'mism' = 'MISM',
+                                         'Mism' = 'MISM'))
+```
+
+##### (c) `toupper` approach
+
+The `toupper` function takes an array of character strings and converts all letters to uppercase.
+
+Use `toupper()` and `mutate` to perform the same data cleaning task as in part (b).  
+
+```{r}
+tidySurvey <- tidySurvey%>% mutate(Program = toupper(Program))
+```
+
+**Tip**: *The `toupper()` and `tolower()` functions are very useful in data cleaning tasks.  You may want to start by running these functions even if you'll have to do some more spot-cleaning later on.*
+
+### Problem 5: Let's apply some functions
+
+##### (a) Writing trimmed mean function
+
+Write a function that calculates the mean of a numeric vector `x`, ignoring the `s` smallest and `l` largest values (this is a *trimmed mean*).  
+
+E.g., if `x = c(1, 7, 3, 2, 5, 0.5, 9, 10)`, `s = 1`, and `l = 2`, your function would return the mean of `c(1, 7, 3, 2, 5)` (this is `x` with the 1 smallest value (0.5) and the 2 largest values (9, 10) removed).
+
+Your function should use the `length()` function to check if `x` has at least `s + l + 1` values.  If `x` is shorter than `s + l + 1`, your function should use the `message()` function to tell the user that the vector can't be trimmed as requested.  If `x` is at least length `s + l + 1`, your function should return the trimmed mean.
+
+```{r}
+# Here's a function skeleton to get you started
+
+# call trimmedMean as a function that takes x, s, l as arguments. I sort x so that I can index it later. if the length is not long enough, display a message. Else trim based on the index that the user inputed and then calculate the mean of that shortened vector. Return the trimmed mean.
+
+trimmedMean <- function(x, s, l) {
+  sortedNum = sort(as.numeric(x), decreasing = FALSE)
+  if (length(x) < s+l+1) {message('The vector can not be trimmed as expected')}
+  else {
+    trim <- sortedNum[(1+s):(length(x)-l)]
+    trimMean <- mean(trim)
+  return (trimMean)
+  }
+}
+
+```
+
+**Hint:** *For this exercise it will be useful to recall the `sort()` function that you first saw in Lecture 1.*
+
+**Note:** The `s = 0` and `l = 0` specified in the function definition are the default settings.  i.e., this syntax ensures that if `s` and `l` are not provided by the user, they are both set to `0`.  Thus the default behaviour is that the `trimmedMean` function doesn't trim anything, and hence is the same as the `mean` function.  
+
+##### (b) Apply your function with a for loop
+
+```{r, fig.width = 6, fig.height = 4}
+set.seed(201911) # Sets seed to make sure everyone's random vectors are generated the same
+list.random <- list(x = rnorm(50), 
+                    y = rexp(65),
+                    z = rt(100, df = 1.5))
+
+
+# Here are the histograms of the data
+
+qplot(list.random$x, bins = 15, fill = I('grey'))
+qplot(list.random$y, bins = 10, fill = I('forestgreen'))
+qplot(list.random$z, bins = 20, fill = I('steelblue'))
+```
+
+Using a `for loop` and your function from part **(a)**, create a vector whose elements are the trimmed means of the vectors in `list.random`, taking `s = 5` and `l = 5`. 
+
+
+```{r}
+vecMeans = vector()
+for (i in 1:length(list.random)) {
+  vecMeans[i] <- trimmedMean(list.random[[i]], 5, 5)
+}
+vecMeans
+```
+
+##### (c) Calculate the un-trimmed means for each of the vectors in the list.  How do these compare to the trimmed means you calculated in part (b)?  Explain your findings.  
+
+```{r}
+mean(list.random$x)
+mean(list.random$y)
+mean(list.random$z)
+```
+
+**Explanation:** 
+<font color="#157515"><b>
+
+All of the trimmed means are closer to 0 than their non trimmed counterparts. The trim has removed some of the randomly produced outliers that pull the mean away from zero.
+
+</font></b>
+
+##### (d) `map` functions
+
+Repeat part **(b)**, using the `map` and `map_dbl` functions instead of a for loop.  Your `map` command should return a list of trimmed means, and your `map_dbl` command should return a numeric vector of trimmed means.
+
+
+```{r}
+map(list.random, trimmedMean,s = 5, l = 5)
+map_dbl(list.random, trimmedMean, s = 5, l = 5)
+```
+
+**Hint** `map` and other functions can take arguments that you wish to pass to the `trimmedMean` function.  E.g., if you were applying the function `sort`, which has an argument `decreasing`, you could use the syntax `map(..., .f = sort, decreasing = TRUE)`.
