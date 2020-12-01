@@ -79,7 +79,7 @@ ggplot(adult.tbl, aes(x = education, y = mean)) +
   theme(axis.text.x=element_text(angle =- 270, vjust = .6)) + 
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, position = position_dodge(0.9)) + 
   xlab("Education")+
-  ylab("Average Capital Gain") +
+  ylab("Average Capital Gain with 95% CI") +
   ggtitle("Average Capital Gain by Education")
 
 ```
@@ -88,7 +88,7 @@ ggplot(adult.tbl, aes(x = education, y = mean)) +
 
 <font color="#0033cc">
 
-Your answer goes here!
+We can conclude that there is a statistically significant difference in capital gains across higher education levels. Lower levels of education, up to an including 'some college' appear to not have any statistical difference. This is because the error bars overlap on the y axis. We start to see a significant difference when we go into higher levels, bachelors and above. These higher levels have y axis values that do not overlap in their error bars.
 
 </font>
 
@@ -168,7 +168,7 @@ incomeOrdered
 
 <font color="#0033cc">
 
-Your answer goes here!
+Based on the graphic created in 4b, there are no employer types where women have higher rates of being high earners. The 95% confidence interval created by the error bar shows us that there is a positive difference, this means that men are a larger proportion of high earners than women. Private employers does include nearly zero in the 95% confidence interval, and this is the closest employer type to an equal proportion.
 
 </font>
 
@@ -197,20 +197,28 @@ Your answer goes here!
 ```
 
 ```{r}
-adultCap <- adult %>% group_by(education) %>% summarise(mean = mean(capital_gain),
+adultSig <- adult %>% group_by(education) %>% summarise(mean = mean(capital_gain),
             lower = t.test(capital_gain)$conf.int[1],
-            upper = t.test(capital_gain)$conf.int[2])
-
-adultCap %>% group_by(education) %>% summarise(mean, lower, upper,
-            is.signif = ifelse(t.test(adultCap$mean)$p.value < 0.05, 1, 0))
-
-t.test(adultCap$mean)$p.value
-ifelse(t.test(adultCap$mean)$p.value < 0.05, 1, 0)
+            upper = t.test(capital_gain)$conf.int[2],
+            is.signif = ifelse(t.test(capital_gain)$p.value < 0.05, 1, 0))
+adultSig
 
 ```
 
 #### (b) Repeat 1(b) to reorder education to be in ascending order of educational attainment.  Then repeat 2(a) to produce a bar chart with error bars, specifying this time that the fill of the bars should be determined by whether the average gains are statistically significantly different from 0.
 
 ```{r}
-# Edit me
+adultSig <- adultSig %>% mutate(education = factor(education, levels = c('1st-4th', '5th-6th', '7th-8th', '9th', '10th', '11th', '12th', 'Assoc-voc', 'Assoc-acdm', 'Some-college', 'Bachelors', 'Masters', 'Prof-school', 'Doctorate')))
+adultSig
+
+ggplot(adultSig, aes(x = education, y = mean, fill = is.signif)) +
+  geom_bar(stat="identity") +
+  theme(axis.text.x=element_text(angle =- 270, vjust = .6)) + 
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, position = position_dodge(0.9)) + 
+  xlab("Education")+
+  ylab("Average Capital Gain with 95% CI") +
+  ggtitle("Average Capital Gain by Education") +
+  labs(fill = "Significance")
+
 ```
+
