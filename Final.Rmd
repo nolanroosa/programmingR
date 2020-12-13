@@ -1,0 +1,190 @@
+---
+title: "Final Project: Race and Income"
+author: "Nolan Roosa"
+date: '12/6/2020'
+output: html_document
+---
+
+#### Package loading
+
+```{r, echo = FALSE}
+library(tidyverse)
+library(knitr)
+library(ggplot2)
+library(VGAM)
+```
+
+## Part 1: Data Processing and Summarization
+
+The first step in handling this data set was making it a size that was more manageable. I selected 11 variables that I believed would have interesting interactions with race and income. The variables included in this analysis are race, income, sex, education level, drug use, incarcerations, school safety, probability of parenthood, parental education level, and grades. With these variables I am hoping to explore how education and opportunity impact income outcomes. Education will be explored using variables such as parents education, degree, and school safety. Opportunity will be focused on the variables that can make it more challenging for someone to earn a higher income. This will include drug use, incarceration, and whether the person is a parent.
+
+
+
+```{r, echo = FALSE, message = FALSE}
+# Import starting data
+nlsy <- read_csv("http://www.andrew.cmu.edu/user/achoulde/94842/final_project/nlsy97/nlsy97_Nov2020.csv")
+
+nlsy <- nlsy %>% select(R1482600, R0536300, U2857200, T6657300, T7640000, 
+                             E8043100, R0070000, R1302600, R1302700, R1701100)
+colnames(nlsy) <- c("race", "sex", "income", "degree", "drug_use", 
+                         "incarcerations", "school_safety", "dad_educ", "mom_educ", "grades")
+
+varnames <- c("income", "degree", "drug_use", 
+                         "incarcerations", "school_safety", "odds_parent", "dad_educ", "mom_educ", "grades")
+summary(nlsy)
+```
+The summary tables give us alot of information on the data. The most obvious is that our selected variables all have negative values that are coded as 'valid skip' or 'Non-Interview'. These entries will need to be accounted for in the data analysis, as they will skew any averages if we use the categories as continuous scores. In the tables, we will filter out these values.
+
+```{r}
+round(cor(nlsy[,varnames]), 3)
+```
+
+We can also begin by looking at the correlation coefficients between some of our categorical variables. The strongest correlation that we can see is between drug use and degree, with a 0.88 correlation coefficient.
+
+
+After choosing these variables and appropriately naming each column, I dropped all the others. This will make the data set easier for me to scan through as I start to conduct my analysis. To make these scans even easier, I will recode sex and race from their categorical values to a string representation of their value. This makes proportion and count tables much easier to read.
+
+```{r, echo = FALSE}
+nlsy <- nlsy %>% filter(race != 2) %>% filter(race != 3) %>% mutate(race = recode_factor(race, '1' = 'Black', '4' = 'Non-Black, Non-Hispanic'), sex = recode_factor(sex, '1' = 'Male', '2' = 'Female'))
+```
+
+```{r, echo = FALSE, message = FALSE}
+parent_education.tbl <- nlsy %>% group_by(race) %>% 
+              summarize(dad_grade_achieved = mean(dad_educ), 
+                        mom_grade_achieved = mean(mom_educ)) %>%
+              arrange(desc(dad_grade_achieved)) %>%
+              kable(format = 'markdown', digits = 2, caption = 'Average Parent Education Level and Race')
+
+parent_education.tbl
+```
+
+The analysis for the Average Pareent Educaiton Level and Race table was conducted using the residential parents educational achievement. This was used instead of birth parent because the person that raises the child will likely have more of an impact on their academic performance. 
+
+The table shows a clear difference between the grade achieved by the parents of Black and Non-Black Non-Hispanic persons. The average grade achieved by a Black persons residential father was 2.64, compared to 9.84 for Non-Black Non-hispanic persons. The difference between the grade achieved of the mothers were much closer. The average black person's mother achieved 10.09, Non-Black Non-Hispanic achieving 12.08. 
+
+
+```{r, echo = FALSE, message = FALSE}
+incar.tbl <- nlsy %>% group_by(race) %>% 
+                summarize(Lower_Bound = t.test(incarcerations)$conf.int[1], 
+                      Incarcerations = mean(incarcerations),
+                      Upper_Bound = t.test(incarcerations)$conf.int[2]) %>% 
+                arrange(desc(Incarcerations)) %>% kable(format = 'markdown', digits = 2, caption = 'Average Number of Incarcerations')
+incar.tbl
+```
+
+The Average Number of Incarcerations table shows a statistically significant difference between the average number of incarcerations of a Black and Non-Black Non-Hispanic person. The average for a Black person is 0.24, compared to 0.15 for Non-Black Non-Hispanic. The 95% confidence interval of these measures have no overlap, indicating this is a significant difference.
+
+```{r, echo = FALSE, message = FALSE}
+drug_use.tbl <- nlsy %>% group_by(race) %>% 
+                filter(drug_use >= 0) %>% 
+                summarize(Lower_Bound = t.test(drug_use)$conf.int[1], 
+                          Drug_Use_Rate = mean(drug_use), 
+                          Upper_Bound = t.test(drug_use)$conf.int[2]) %>% 
+                arrange(desc(Drug_Use_Rate)) %>% 
+                kable(format = 'markdown', digits = 3, caption = 'Rate of Drug Use by Race')
+drug_use.tbl
+```
+
+The Rate of Drug Use by Race table makes it very clear that there is no statistically significant difference in the rate at which Black and Non-Black Non-Hispanic persons use drugs. The 95% confidence interval conveyed by the lower_bound and upper_bound variable show a significant amount of overlap. Statistically this means that we fail to reject our null hypothesis that there is no difference. 
+
+```{r, echo = FALSE, message = FALSE}
+school.tbl <- nlsy %>% group_by(race) %>%
+              filter(grades >= 0) %>% 
+              filter(grades <= 8) %>%
+              filter(degree >=0) %>%
+              filter(degree <= 6) %>%
+              summarize(Safety_Rating = mean(school_safety, na.rm = TRUE),
+                        Grades = mean(grades),
+                        Degree_Level = mean(degree)) %>%
+              kable(format = 'markdown', digits = 3, caption = 'School Safety and Performance by Race')
+
+school.tbl
+
+```
+
+The data used to create the School Safety and Performance by Race was created by filtering the responses of variable R17005. This filter removes responses such as 'other', 'mixed', 'A's to C's', and similar responses. The data includes responses such as 'Mostly below D's', 'Mostly D's', 'About half Cs and half Ds', these responses continue up to 'Mostly A's'. This means that a higher grades value indicates higher average grades.
+
+Safety rating can should be interpreted where a higher score indicates feeling less safe at school. A response of 1 indicated 'strongly agree' with the statement 'I feel safe at this school'. A response of 4 indicated 'strongly disagree'.
+
+Degree Level is a categorical variable with a corresponding degree level. The variable ascends from 0 for 'no degree' to 6 for 'PhD'. This analysis excludes professional degrees. They are excluded because they do not fit nicely into the other categories and do not follow a score where a higher value signifies a more advanced degree.
+
+This table shows that Black persons had lower grades, less advanced degrees, and felt less safe at their school, on average, compared to Non-Black Non-Hispanic persons. These differences would benefit from a t-test to confirm the significance of the difference.
+
+## Part 2: Methodology
+
+#### Missing Values
+
+I checked if each of my selected columns contained NA values. After the filters applied in Part 1, Data Processing and Summarization, there were not any NA values. Had there been any missing values, I would have likely removed them from my analysis, or replaced them with a grouped average. 
+
+```{r, message = FALSE}
+any(is.na(nlsy))
+```
+
+#### Topcoded Variables
+
+The income variable used in this analysis, U2857200, is top coded. This means that the top 2% of valid values of income were assigned the lowest value of that top 2% slice ($149,000). Any regression model applied to this data without accomodation would not have accurate coefficients. To overcome this, the findings section will include a regression model that excludes the top 2% and a Tobit regression model.
+
+#### Uninteresting Tables
+
+
+#### Relationships not included in Findings
+
+Drug use will not be used as a dependent variable in the findings analysis. In Part 1, Data Processing and Summarization, the analysis showed that there was no statistically significant difference between the rate of drug use between Black, and Non-Black NonHispanic persons. 
+
+
+#### Analysis in Findings
+
+## Part 3: Findings
+
+To understand the difference in income between different racial groups we can start with a simple bar graph with error bars. This bar graph displays the average income and 95% confidence interval for each racial group.
+
+```{r, echo = FALSE, warning  = FALSE}
+income.tbl <- nlsy %>% group_by(race) %>% summarize(mean = mean(income),
+            lower = t.test(income)$conf.int[1],
+            upper = t.test(income)$conf.int[2])
+
+ggplot(income.tbl, aes(x = race, y = mean, fill = race)) +
+  geom_bar(stat="identity") + 
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2, position = position_dodge(0.9)) + 
+  xlab("Race")+
+  ylab("Average Income with 95% CI") +
+  ggtitle("Average Income by Race")
+
+```
+
+We can conclude that White persons earn significantly more than both Hispanic and Black identifying persons. 
+
+```{r}
+  #NEEDS THE FILTER TO GET RID OF TOP INCOME
+
+nlsy_topcoded <- nlsy %>% filter(income <= 148999)
+
+simple_model <- lm(income ~ race, data = nlsy)
+all_model <- lm(income ~ race + sex + degree + drug_use + incarcerations + school_safety + mom_educ + dad_educ + grades, data = nlsy)
+summary(simple_model)
+```
+
+CONCLUSIONS SIMPLE MODEL
+
+```{r}
+summary(all_model)
+```
+
+CONCLUSIONS FULL MODEL
+
+```{r}
+tobit <- vglm(income ~ race + sex + degree + drug_use + incarcerations + school_safety + mom_educ + dad_educ + grades, tobit(Upper = 149000), data = nlsy)
+summary(tobit)
+```
+
+
+## Part 4: Discussion
+
+
+blah blah blah
+
+
+
+
+
+
