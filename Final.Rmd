@@ -1,13 +1,11 @@
 ---
 title: "Final Project: Race and Income"
 author: "Nolan Roosa"
-date: '12/6/2020'
+date: '12/14/2020'
 output: html_document
 ---
 
-#### Package loading
-
-```{r, echo = FALSE}
+```{r, echo = FALSE, message = FALSE}
 library(tidyverse)
 library(knitr)
 library(ggplot2)
@@ -25,14 +23,15 @@ The first step in handling this data set was making it a size that was more mana
 nlsy <- read_csv("http://www.andrew.cmu.edu/user/achoulde/94842/final_project/nlsy97/nlsy97_Nov2020.csv")
 
 nlsy <- nlsy %>% select(R1482600, R0536300, U2857200, T6657300, T7640000, 
-                             E8043100, R0070000, R1302600, R1302700, R1701100)
+                             E8043100, R0070000, R1302600, R1302700, R1701100, U1719400 )
 colnames(nlsy) <- c("race", "sex", "income", "degree", "drug_use", 
-                         "incarcerations", "school_safety", "dad_educ", "mom_educ", "grades")
+                         "incarcerations", "school_safety", "dad_educ", "mom_educ", "grades", "job")
 
 varnames <- c("income", "degree", "drug_use", 
-                         "incarcerations", "school_safety", "odds_parent", "dad_educ", "mom_educ", "grades")
+                         "incarcerations", "school_safety", "dad_educ", "mom_educ", "grades")
 summary(nlsy)
 ```
+
 The summary tables give us alot of information on the data. The most obvious is that our selected variables all have negative values that are coded as 'valid skip' or 'Non-Interview'. These entries will need to be accounted for in the data analysis, as they will skew any averages if we use the categories as continuous scores. In the tables, we will filter out these values.
 
 ```{r}
@@ -44,9 +43,28 @@ We can also begin by looking at the correlation coefficients between some of our
 
 After choosing these variables and appropriately naming each column, I dropped all the others. This will make the data set easier for me to scan through as I start to conduct my analysis. To make these scans even easier, I will recode sex and race from their categorical values to a string representation of their value. This makes proportion and count tables much easier to read.
 
+I will also filter race to only include Black and Non-Black Non-Hispanic persons to make my comparison more focused. I will also filter out incomes that are entered as less than 0, these are not valid entries that will skew our results.
+
 ```{r, echo = FALSE}
-nlsy <- nlsy %>% filter(race != 2) %>% filter(race != 3) %>% mutate(race = recode_factor(race, '1' = 'Black', '4' = 'Non-Black, Non-Hispanic'), sex = recode_factor(sex, '1' = 'Male', '2' = 'Female'))
+nlsy <- nlsy %>% filter(race != 2) %>% filter(race != 3) %>% filter(income >=0 ) %>% mutate(race = recode_factor(race, '1' = 'Black', '4' = 'Non-Black, Non-Hispanic'), sex = recode_factor(sex, '1' = 'Male', '2' = 'Female'))
 ```
+
+#### Tabular Analysis
+
+```{r, echo = FALSE, message = FALSE}
+quantile(nlsy$income)
+
+nlsy <- nlsy %>% mutate(income_level = ifelse(income <= 25000, 1, ifelse(income > 25000 & income <= 40000, 2, ifelse(income > 40000 & income <= 64000, 3, ifelse(income >64000 & income <= 235884, 4, 0)))))
+
+overall <- table(nlsy$race)
+kable(prop.table(overall), caption = 'NLSY Data Racial Breakdown')
+
+income_race_table <- table(nlsy$income_level, nlsy$race)
+kable(prop.table(income_race_table, 1), row.names = TRUE, caption = "Racial Proportion by Income Quartile")
+```
+
+From these two proportion tables we can draw an important conclusion that will guide the rest of our analysis. In this data set Black persons make up 31.4%, the remaining 68.56% are Non-Black and Non-Hispanic. In a random, fair, world we would see that this proportion would be the same seen in each income quartile seen in the second table. This is evidently not the case. Black persons are over represented in the bottom half of income, and even more underrepresented in the top half of the income distribution. 
+
 
 ```{r, echo = FALSE, message = FALSE}
 parent_education.tbl <- nlsy %>% group_by(race) %>% 
@@ -58,21 +76,10 @@ parent_education.tbl <- nlsy %>% group_by(race) %>%
 parent_education.tbl
 ```
 
-The analysis for the Average Pareent Educaiton Level and Race table was conducted using the residential parents educational achievement. This was used instead of birth parent because the person that raises the child will likely have more of an impact on their academic performance. 
+The analysis for the Average Parent Education Level and Race table was conducted using the residential parents educational achievement. This was used instead of birth parent because the person that raises the child will likely have more of an impact on their academic performance. 
 
 The table shows a clear difference between the grade achieved by the parents of Black and Non-Black Non-Hispanic persons. The average grade achieved by a Black persons residential father was 2.64, compared to 9.84 for Non-Black Non-hispanic persons. The difference between the grade achieved of the mothers were much closer. The average black person's mother achieved 10.09, Non-Black Non-Hispanic achieving 12.08. 
 
-
-```{r, echo = FALSE, message = FALSE}
-incar.tbl <- nlsy %>% group_by(race) %>% 
-                summarize(Lower_Bound = t.test(incarcerations)$conf.int[1], 
-                      Incarcerations = mean(incarcerations),
-                      Upper_Bound = t.test(incarcerations)$conf.int[2]) %>% 
-                arrange(desc(Incarcerations)) %>% kable(format = 'markdown', digits = 2, caption = 'Average Number of Incarcerations')
-incar.tbl
-```
-
-The Average Number of Incarcerations table shows a statistically significant difference between the average number of incarcerations of a Black and Non-Black Non-Hispanic person. The average for a Black person is 0.24, compared to 0.15 for Non-Black Non-Hispanic. The 95% confidence interval of these measures have no overlap, indicating this is a significant difference.
 
 ```{r, echo = FALSE, message = FALSE}
 drug_use.tbl <- nlsy %>% group_by(race) %>% 
@@ -108,7 +115,7 @@ Safety rating can should be interpreted where a higher score indicates feeling l
 
 Degree Level is a categorical variable with a corresponding degree level. The variable ascends from 0 for 'no degree' to 6 for 'PhD'. This analysis excludes professional degrees. They are excluded because they do not fit nicely into the other categories and do not follow a score where a higher value signifies a more advanced degree.
 
-This table shows that Black persons had lower grades, less advanced degrees, and felt less safe at their school, on average, compared to Non-Black Non-Hispanic persons. These differences would benefit from a t-test to confirm the significance of the difference.
+This table shows that Black persons had lower grades, less advanced degrees, and felt less safe at their school, on average, compared to Non-Black Non-Hispanic persons.
 
 ## Part 2: Methodology
 
@@ -122,20 +129,38 @@ any(is.na(nlsy))
 
 #### Topcoded Variables
 
-The income variable used in this analysis, U2857200, is top coded. This means that the top 2% of valid values of income were assigned the lowest value of that top 2% slice ($149,000). Any regression model applied to this data without accomodation would not have accurate coefficients. To overcome this, the findings section will include a regression model that excludes the top 2% and a Tobit regression model.
+The income variable used in this analysis, U2857200, is top coded. This means that the top 2% of valid values of income were assigned the lowest value of that top 2% slice ($149,000). Any regression model applied to this data without accommodation would not have accurate coefficients. To overcome this, the findings section will include a regression model that excludes the top 2% and a Tobit regression model. By using both of these models as a work around for top coded values, we can be confident in our interpretation of our regression coefficients.
+
+#### Filters
+
+There were multiple variables that needed filters when being used in both the proportion tables of Part 1 and in the tables used in Part 3. This was largely due to the coding of variables with negative values to designate a non-interview or to designate whether a participant skipped the question. 
 
 #### Uninteresting Tables
 
+There were several tables that did not have the results that I expected. 
+
+```{r, echo = FALSE, message = FALSE}
+incar.tbl <- nlsy %>% group_by(race) %>% 
+                summarize(Lower_Bound = t.test(incarcerations)$conf.int[1], 
+                      Incarcerations = mean(incarcerations),
+                      Upper_Bound = t.test(incarcerations)$conf.int[2]) %>% 
+                arrange(desc(Incarcerations)) %>% kable(format = 'markdown', digits = 2, caption = 'Average Number of Incarcerations')
+incar.tbl
+```
+
+I was expecting there to be a statistically significant difference in the average number of incarcerations. This was not the case. There is an overlap in the 95% confidence intervals of these rates between Black and Non-Black Non-Hispanic persons. This indicates that the difference is not statistically different at the 95% level.
 
 #### Relationships not included in Findings
 
-Drug use will not be used as a dependent variable in the findings analysis. In Part 1, Data Processing and Summarization, the analysis showed that there was no statistically significant difference between the rate of drug use between Black, and Non-Black NonHispanic persons. 
+Drug use will not be used as a dependent variable in the findings analysis. In Part 1, Data Processing and Summarization, the analysis showed that there was no statistically significant difference between the rate of drug use between Black, and Non-Black Non-Hispanic persons. 
 
 
 #### Analysis in Findings
 
 ## Part 3: Findings
 
+
+#### Graphical Findings
 To understand the difference in income between different racial groups we can start with a simple bar graph with error bars. This bar graph displays the average income and 95% confidence interval for each racial group.
 
 ```{r, echo = FALSE, warning  = FALSE}
@@ -155,33 +180,64 @@ ggplot(income.tbl, aes(x = race, y = mean, fill = race)) +
 We can conclude that White persons earn significantly more than both Hispanic and Black identifying persons. 
 
 ```{r}
-  #NEEDS THE FILTER TO GET RID OF TOP INCOME
+nlsy_degree_filtered <- nlsy %>% filter(degree >= 0) %>% filter(income <=210000) %>% filter(degree < 7)
 
+ggplot(nlsy_degree_filtered, aes(x = jitter(degree), y = income, color = race)) +
+  geom_point() +
+  geom_smooth() + 
+  xlab("Level of Degree (0: None... 6: PhD)") +
+  ylab("Expected Income") +
+  ggtitle("Comparing Expected Income Across Degree and Race")
+
+```
+
+There were several methodological decisions that went into constructing this plot. The data used is a filtered subset of nlsy that removes negative degree values. Those values do not correspond with a particular degree but are coded as non responses or non interview status in the data set. A jitter was added to the degree variable due to insufficient x axis values. 
+
+The plot shows that even when accounting for different degree levels, that Black persons earn less than their equally educated Non-Black Non-Hispanic peers. This difference is significant from 0 (no degree) up to 5 (Masters degree). Only at the PhD level (6) does that difference appear to be statistically insignificant, we can conclude this due to the overlap in the grey area of the confidence intervals.
+
+
+#### Regression
+```{r}
 nlsy_topcoded <- nlsy %>% filter(income <= 148999)
 
-simple_model <- lm(income ~ race, data = nlsy)
-all_model <- lm(income ~ race + sex + degree + drug_use + incarcerations + school_safety + mom_educ + dad_educ + grades, data = nlsy)
-summary(simple_model)
+simple_model <- lm(income ~ race, data = nlsy_topcoded)
+all_model <- lm(income ~ race + job + sex + degree + incarcerations + school_safety + mom_educ + dad_educ + grades, data = nlsy_topcoded)
+kable(coef(summary(simple_model)), digits = c(0, 0, 2, 4))
 ```
 
-CONCLUSIONS SIMPLE MODEL
+This simple model is a regression of race on income, after having removed the topcoded values. This shows that, on average, a Non-Black Non-Hispanic person has an income $13,384.5 higher than a Black person. This model does not include any of the other variables, and we will add them in the next model that includes all the variables.
 
 ```{r}
-summary(all_model)
+kable(coef(summary(all_model)), digits = c(0, 0, 2, 4))
 ```
 
-CONCLUSIONS FULL MODEL
+This model regresses income on all of the variables of analysis. We can see that the gain of being Non-Black Non-Hispanic in respect to income. We can see that being a woman is associated with a \$13,707  loss in income, degree is associated with a \$6,397 increase in income. Other variables such as incarcerations and school safety have negative coefficients. The only variable that was not significant at atleast a 99% level is dad_educ. 
 
-```{r}
-tobit <- vglm(income ~ race + sex + degree + drug_use + incarcerations + school_safety + mom_educ + dad_educ + grades, tobit(Upper = 149000), data = nlsy)
-summary(tobit)
+The coefficient for the persons job is not something that should be interpreted. The variable was included to serve more as a stand in control.
+
+This analysis could benefit from some additional variables. The r-squared value is 0.24 meaning that only 24% of change in income is accounted for by our independent variables. This is however a large improvement from the r-squared of the simple model which was only 0.045.
+
+```{r, message = FALSE, warning = FALSE}
+tobit <- vglm(income ~ race + job + sex + degree + incarcerations + school_safety + mom_educ + dad_educ + grades, tobit(Upper = 149000), data = nlsy)
+kable(coef(summary(tobit)), digits = c(0, 0, 2, 4))
 ```
+
+A tobit regression model can censor the dependent variables and account for any kind of top coding. This means that our dependent variable can have a cap and we can still interpret our regression coefficients with confidence. The regression coefficients of the tobit model are very similar to those in the model where the topcoded values were simply excluded. All of them are in the same signum, and most are almost exacly the same. For example the coefficient for Non-Black Non Hispanic is 8194  in the model that simply excluded the topcoded data. The same estimated coefficient in the Tobit model is 8,918. This is very reassuring that we can be confident in the significance of our coefficients. 
 
 
 ## Part 4: Discussion
 
+The results presented throughout this paper show an exploration of the effects of race and other variables on income. The results repeatedly show that being a Non-Black Hispanic, white, person is associated on average with a higher income level than a black person. We can 
 
-blah blah blah
+A significant limitation on this data is that is was collected across over two decades. This long period of time makes it challenging to connect our variables in a meaningful way. For example, income data was collected in 2017, while race was collected in 1997. This makes it challenging for us to make any claims of causality with the correlation that were shown in this paper.
+
+There are two potentially confounding variables used in this analysis. Mom and Dad education variables likely have a significant impact on the level of degree that someone obtains.
+
+There were several appraoches used that promote confident in our findings. By using data with confidence intervals we can ensure that our percieved differences are statistically significant. We also thoughtfully built our regression analysis. First by creating a simple model, then building on it, and finally confirming our results with a separate tobit model.
+
+These graphical and regression results in Part 4 confirm the original findings presented at the start of Part 1 in proportion tables. White persons 
+
+
 
 
 
